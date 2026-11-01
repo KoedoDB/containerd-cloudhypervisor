@@ -14,7 +14,7 @@
 #
 set -euo pipefail
 
-KERNEL_VERSION="${1:-6.18.59}"
+KERNEL_VERSION="${1:-6.18.60}"
 
 KERNEL_MAJOR="${KERNEL_VERSION%%.*}"
 KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz"
