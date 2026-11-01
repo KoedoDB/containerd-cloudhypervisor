@@ -58,7 +58,8 @@ def extra_args():
     return a
 
 
-def start_pg(name, rtname, tag, limits=("2", "2g")):
+def start_pg(name, rtname, tag, limits=None):
+    limits = limits or r.vm_limits(rtname, "pg")   # the same limits (and so the same VM size, checked by r.check_vm) as the virtio-fs run of this Kata variant
     ensure_image(); ensure_lv(); wipe()
     args = ["run", "-d", "--name", name, "--runtime", "kata-clh", "--cpus", limits[0], "-m", limits[1], "--memory-swap", limits[1], "--pids-limit", "2048",
             "--shm-size", "256m", "-e", "POSTGRES_HOST_AUTH_METHOD=trust", *extra_args(), "--entrypoint", "/bin/sh", IMAGE, "-c", ENTRY, "sh", "postgres", *r.PG_ARGS]
