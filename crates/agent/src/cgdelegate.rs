@@ -467,7 +467,9 @@ mod tests {
         for c in STRIPPED_CAPS {
             assert!(!caps.contains(c), "{c}");
         }
-        assert!(caps.contains("CAP_SETUID") && caps.contains("CAP_KILL") && caps.contains("CAP_CHOWN"));
+        assert!(
+            caps.contains("CAP_SETUID") && caps.contains("CAP_KILL") && caps.contains("CAP_CHOWN")
+        );
         assert_eq!(identity(&s), (0, 0));
     }
 
