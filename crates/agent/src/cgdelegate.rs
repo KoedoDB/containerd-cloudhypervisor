@@ -21,7 +21,7 @@
 //! 3. The container is in a cgroup namespace whose root is `d`, and sees a cgroup2 file system that shows only `d`: no parent, no
 //!    sibling. The guest mounts cgroup2 with `nsdelegate`, so the kernel also treats the namespace root as a delegation boundary (a
 //!    process cannot be moved across it, from either side). The device rules (eBPF) are attached by crun to `d`, which only grows down.
-//! 4. `CAP_CHOWN`, `CAP_DAC_OVERRIDE` and `CAP_FOWNER` are removed from a delegated container, so that root in it cannot override the
+//! 4. `CAP_DAC_OVERRIDE` and `CAP_FOWNER` are removed from a delegated container, so that root in it cannot override the
 //!    permissions of files that are not its own. `CAP_SETUID`/`CAP_SETGID` may stay (point 1 does not depend on them).
 //!
 //! The container's first process starts in `d` itself. The kernel's "no internal processes" rule means it must move into a leaf child
@@ -43,9 +43,11 @@ pub const NOBODY: u32 = 65534;
 const NAME_ANNOTATION: &str = "io.kubernetes.cri.container-name";
 /// The files the container owns (the ones the kernel itself hands to the user of a delegated cgroup).
 const DELEGATED_FILES: &[&str] = &["cgroup.procs", "cgroup.threads", "cgroup.subtree_control"];
-/// Capabilities taken from a delegated container: they would let root change the owner or the permissions of the limit files, or
-/// ignore them.
-pub const STRIPPED_CAPS: &[&str] = &["CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER"];
+/// Capabilities taken from a delegated container: they would let root ignore the permissions of files that are not its own (the
+/// files of `d` that belong to `nobody`) or change their permissions. `CAP_CHOWN` stays (v0.6.1): a container that must hand files to
+/// other users (the Functions spawner: the run directory and the socket of each customer's process) needs it, and it breaks nothing
+/// here: the limits sit on the parent, which the container cannot see, and a root with `CAP_SETUID` can already become any owner.
+pub const STRIPPED_CAPS: &[&str] = &["CAP_DAC_OVERRIDE", "CAP_FOWNER"];
 
 /// Whether this container is one the Pod's annotation names. The annotation holds container names, separated by commas. A container
 /// without a name (a client that is not Kubernetes) is never delegated to, and neither is one the list does not name.
@@ -208,7 +210,7 @@ pub fn remove_parent(id: &str) {
 }
 
 /// Change the cleaned spec of a delegated container: a cgroup namespace (its root is the container's cgroup, which `crun` has already
-/// entered), a cgroup2 mount that shows that root, and no `CAP_CHOWN`, `CAP_DAC_OVERRIDE`, `CAP_FOWNER`.
+/// entered), a cgroup2 mount that shows that root, and no `CAP_DAC_OVERRIDE`, `CAP_FOWNER`.
 pub fn apply(clean: &mut Value) {
     if let Some(ns) = clean
         .pointer_mut("/linux/namespaces")
@@ -460,12 +462,12 @@ mod tests {
         assert_eq!(mount["type"], "cgroup2");
         let opts = mount["options"].to_string();
         assert!(!opts.contains("\"ro\"") && opts.contains("nosuid") && opts.contains("noexec"));
-        // Nothing is added, and the three are gone from every set.
+        // Nothing is added, the stripped ones are gone from every set, and CAP_CHOWN stays.
         let caps = s["process"]["capabilities"].to_string();
         for c in STRIPPED_CAPS {
             assert!(!caps.contains(c), "{c}");
         }
-        assert!(caps.contains("CAP_SETUID") && caps.contains("CAP_KILL"));
+        assert!(caps.contains("CAP_SETUID") && caps.contains("CAP_KILL") && caps.contains("CAP_CHOWN"));
         assert_eq!(identity(&s), (0, 0));
     }
 

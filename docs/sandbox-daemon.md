@@ -1042,14 +1042,14 @@ AddContainer request that carries the annotation unless `allow_cgroup_delegate` 
 3. Owners in `d`: the directory and `cgroup.procs`, `cgroup.threads`, `cgroup.subtree_control` go to the container's uid/gid
    (`process.user`); every other file of `d` goes to `nobody` (65534). The parent's files stay root's and are never changed.
 4. The container gets a cgroup namespace (its root is `d`) and a read-write cgroup2 mount at `/sys/fs/cgroup` that shows only `d`.
-5. `CAP_CHOWN`, `CAP_DAC_OVERRIDE` and `CAP_FOWNER` are removed from all its capability sets, even if the Pod asks for them. No capability is
-   added. `CAP_SETUID`/`CAP_SETGID` may stay: the limits do not depend on the container not having them.
+5. `CAP_DAC_OVERRIDE` and `CAP_FOWNER` are removed from all its capability sets, even if the Pod asks for them. No capability is
+   added. `CAP_CHOWN` stays (v0.6.1: the Functions spawner hands each customer's directories and socket to other users; the limits are on the parent, which the container cannot touch). `CAP_SETUID`/`CAP_SETGID` may stay: the limits do not depend on the container not having them.
 6. When the container is deleted the agent removes the parent too (crun removes `d`).
 
 **What the container must do.** Its first process starts in `d` itself. The kernel does not let a cgroup that holds
 processes pass controllers on, so the entrypoint first moves into a leaf (`mkdir leaf; echo $$ > leaf/cgroup.procs`), then writes
 `+cpu +memory +pids` to `cgroup.subtree_control`, then makes one child per program it starts, sets the limits and puts the child in
-(the process, or `CLONE_INTO_CGROUP`). Without `CAP_CHOWN` it cannot `chown` files for another user: make them as that user (`setfsuid`) instead.
+(the process, or `CLONE_INTO_CGROUP`). It can `chown` only if the Pod gives it `CAP_CHOWN`.
 
 ### Security properties, and what is not guaranteed
 
